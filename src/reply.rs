@@ -195,6 +195,26 @@ pub struct Node {
     pub focused: bool,
 }
 
+impl Node {
+    pub fn pretty(&self) -> String {
+        self.pretty_internal(0)
+    }
+
+    fn pretty_internal(&self, level: usize) -> String {
+        let Node {ref name, ref nodes, ..} = self;
+        let prefix = match level {
+            0 => String::from(""),
+            _ => format!("{}- ", "  ".repeat(level))
+        };
+        let name = name.clone().unwrap_or(String::from("<Node>"));
+        let mut result = format!("{}{}\n", prefix, name);
+        for ref child in nodes {
+            result += &child.pretty_internal(level + 1);
+        }
+        result
+    }
+}
+
 /// The reply to the `get_marks` request.
 ///
 /// Consists of a single vector of strings for each container that has a mark. A mark can only
@@ -381,4 +401,71 @@ pub struct BindingModes {
 pub struct Config {
     /// A string containing the config file as loaded by i3 most recently.
     pub config: String,
+}
+
+#[cfg(test)]
+mod test {
+    use super::*;
+
+    fn mk_node(name: Option<String>, nodes: Vec<Node>) -> Node {
+        Node {
+            focus: vec![],
+            nodes,
+            floating_nodes: vec![],
+            id: 1,
+            name,
+            nodetype: NodeType::Root,
+            border: NodeBorder::Normal,
+            current_border_width: 4,
+            layout: NodeLayout::SplitH,
+            percent: None,
+            rect: (0,0,100,100),
+            window_rect: (0, 0, 0, 0),
+            deco_rect: (0, 0, 0, 0),
+            geometry: (0, 0, 0, 0),
+            window: None,
+            urgent: false,
+            focused: false
+        }
+    }
+
+    #[test]
+    fn pretty_works() {
+        let tree = mk_node(
+            Some(String::from("root")),
+            vec![
+                mk_node(Some(String::from("foo")), vec![]),
+                mk_node(
+                    Some(String::from("bar")),
+                    vec![
+                        mk_node(Some(String::from("baz")), vec![])
+                    ]
+                )
+            ]
+        );
+        assert_eq!(tree.pretty(), "root\n  - foo\n  - bar\n    - baz\n");
+    }
+
+    #[test]
+    fn pretty_includes_newline_for_unnamed_nodes() {
+        let tree = mk_node(None, vec![]);
+        assert_eq!(tree.pretty(), "<Node>\n");
+    }
+
+    #[test]
+    fn pretty_renders_unnamed_nodes_correctly() {
+        let tree = mk_node(
+            Some(String::from("root")),
+            vec![
+                mk_node(Some(String::from("foo")), vec![]),
+                mk_node(
+                    None,
+                    vec![
+                        mk_node(Some(String::from("bar")), vec![])
+                    ]
+                )
+            ]
+        );
+        assert_eq!(tree.pretty(), "root\n  - foo\n  - <Node>\n    - bar\n");
+    }
 }
