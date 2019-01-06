@@ -197,19 +197,22 @@ pub struct Node {
 
 impl Node {
     pub fn pretty(&self) -> String {
-        self.pretty_internal(0)
+        self.custom_pretty(|x| x.name.clone().unwrap_or(String::from("<Node>")))
     }
 
-    fn pretty_internal(&self, level: usize) -> String {
-        let Node {ref name, ref nodes, ..} = self;
+    pub fn custom_pretty(&self, render: fn(&Node) -> String) -> String {
+        self.pretty_internal(render, 0)
+    }
+
+    fn pretty_internal(&self, render: fn(&Node) -> String, level: usize) -> String {
         let prefix = match level {
             0 => String::from(""),
             _ => format!("{}- ", "  ".repeat(level))
         };
-        let name = name.clone().unwrap_or(String::from("<Node>"));
-        let mut result = format!("{}{}\n", prefix, name);
-        for ref child in nodes {
-            result += &child.pretty_internal(level + 1);
+        let rendered = render(self);
+        let mut result = format!("{}{}\n", prefix, rendered);
+        for ref child in &self.nodes {
+            result += &child.pretty_internal(render, level + 1);
         }
         result
     }
@@ -407,14 +410,14 @@ pub struct Config {
 mod test {
     use super::*;
 
-    fn mk_node(name: Option<String>, nodes: Vec<Node>) -> Node {
+    fn mk_node(name: Option<String>, nodes: Vec<Node>, nodetype: NodeType) -> Node {
         Node {
             focus: vec![],
             nodes,
             floating_nodes: vec![],
             id: 1,
             name,
-            nodetype: NodeType::Root,
+            nodetype,
             border: NodeBorder::Normal,
             current_border_width: 4,
             layout: NodeLayout::SplitH,
@@ -434,21 +437,23 @@ mod test {
         let tree = mk_node(
             Some(String::from("root")),
             vec![
-                mk_node(Some(String::from("foo")), vec![]),
+                mk_node(Some(String::from("foo")), vec![], NodeType::Con),
                 mk_node(
                     Some(String::from("bar")),
                     vec![
-                        mk_node(Some(String::from("baz")), vec![])
-                    ]
+                        mk_node(Some(String::from("baz")), vec![], NodeType::Con)
+                    ],
+                    NodeType::Con
                 )
-            ]
+            ],
+            NodeType::Root
         );
         assert_eq!(tree.pretty(), "root\n  - foo\n  - bar\n    - baz\n");
     }
 
     #[test]
     fn pretty_includes_newline_for_unnamed_nodes() {
-        let tree = mk_node(None, vec![]);
+        let tree = mk_node(None, vec![], NodeType::Root);
         assert_eq!(tree.pretty(), "<Node>\n");
     }
 
@@ -457,15 +462,39 @@ mod test {
         let tree = mk_node(
             Some(String::from("root")),
             vec![
-                mk_node(Some(String::from("foo")), vec![]),
+                mk_node(Some(String::from("foo")), vec![], NodeType::Con),
                 mk_node(
                     None,
                     vec![
-                        mk_node(Some(String::from("bar")), vec![])
-                    ]
+                        mk_node(Some(String::from("bar")), vec![], NodeType::Con)
+                    ],
+                    NodeType::Con
                 )
-            ]
+            ],
+            NodeType::Root
         );
         assert_eq!(tree.pretty(), "root\n  - foo\n  - <Node>\n    - bar\n");
+    }
+
+    #[test]
+    fn custom_pretty_allows_to_specify_how_nodes_are_rendered() {
+        let tree = mk_node(
+            Some(String::from("root")),
+            vec![
+                mk_node(Some(String::from("foo")), vec![], NodeType::Con),
+                mk_node(
+                    None,
+                    vec![
+                        mk_node(Some(String::from("bar")), vec![], NodeType::Con)
+                    ],
+                    NodeType::Con
+                )
+            ],
+            NodeType::Root
+        );
+        assert_eq!(
+            tree.custom_pretty(|x| format!("{:?}", x.nodetype)),
+            "Root\n  - Con\n  - Con\n    - Con\n"
+        );
     }
 }
