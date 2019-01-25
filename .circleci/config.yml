@@ -1,0 +1,29 @@
+version: 2
+
+jobs:
+  build:
+    docker:
+      - image: rust:1.32.0-stretch
+
+    environment:
+      RUST_BACKTRACE: 1
+
+    steps:
+      - checkout
+      - run:
+          name: install i3
+          command: apt update && apt install i3-wm xvfb --yes
+      - run:
+          name: check formatting
+          command: |
+            rustup component add rustfmt
+            cargo fmt -- --check
+      - run:
+          name: tests
+          command: |
+            xvfb-run -n 42 i3 &
+            export DISPLAY=:42
+            cargo test
+      - run:
+          name: build
+          command: cargo build
