@@ -46,7 +46,9 @@ pub fn build_tree(val: &json::Value) -> reply::Node {
             "output" => reply::NodeType::Output,
             "con" => reply::NodeType::Con,
             "floating_con" => reply::NodeType::FloatingCon,
-            "workspace" => reply::NodeType::Workspace,
+            "workspace" => reply::NodeType::Workspace {
+                num: val.get("num").unwrap().as_i64().unwrap(),
+            },
             "dockarea" => reply::NodeType::DockArea,
             other => {
                 warn!(target: "i3ipc", "Unknown NodeType {}", other);
@@ -160,5 +162,36 @@ pub fn build_bar_config(j: &json::Value) -> reply::BarConfig {
             }
             map
         },
+    }
+}
+
+#[cfg(test)]
+mod test {
+    use super::*;
+    use crate::reply::NodeType;
+
+    #[test]
+    fn includes_num_for_workspaces() {
+        let json_str = r#"
+            {
+              "id": 94710576369360,
+              "name": "4",
+              "type": "workspace",
+              "num": 42,
+              "border": "normal",
+              "current_border_width": -1,
+              "layout": "splith",
+              "percent": null,
+              "rect": { "x": 0, "y": 0, "width": 1366, "height": 745 },
+              "window_rect": { "x": 0, "y": 0, "width": 0, "height": 0 },
+              "deco_rect": { "x": 0, "y": 0, "width": 0, "height": 0 },
+              "geometry": { "x": 0, "y": 0, "width": 0, "height": 0 },
+              "window": null,
+              "urgent": false,
+              "focused": false
+            }
+        "#;
+        let json: json::Value = json::from_str(json_str).unwrap();
+        assert_eq!(build_tree(&json).nodetype, NodeType::Workspace { num: 42 });
     }
 }
