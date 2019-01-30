@@ -116,7 +116,7 @@ pub enum NodeLayout {
 }
 
 /// The reply to the `get_tree` request.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct Node {
     /// List of child node IDs (see `nodes`, `floating_nodes` and `id`) in focus order. Traversing
     /// the tree by following the first entry in this array will result in eventually reaching the
@@ -217,6 +217,30 @@ impl Node {
             result += &child.pretty_internal(render, level + 1);
         }
         result
+    }
+
+    pub fn iter<'a>(&'a self) -> impl Iterator<Item = &'a Node> + 'a {
+        struct NodeIterator<'a> {
+            queue: Vec<&'a Node>,
+        }
+
+        impl<'a> Iterator for NodeIterator<'a> {
+            type Item = &'a Node;
+
+            fn next(&mut self) -> Option<&'a Node> {
+                match self.queue.pop() {
+                    None => None,
+                    Some(result) => {
+                        for node in result.nodes.iter() {
+                            self.queue.push(node);
+                        }
+                        Some(result)
+                    }
+                }
+            }
+        }
+
+        NodeIterator { queue: vec![&self] }
     }
 }
 
@@ -492,5 +516,60 @@ mod test {
             tree.custom_pretty(|x| format!("{:?}", x.nodetype)),
             "Root\n  - Con\n  - Con\n    - Con\n"
         );
+    }
+
+    mod iter {
+        use super::*;
+
+        #[test]
+        fn returns_the_given_root_node_first() {
+            let root = mk_node(Some(String::from("root")), vec![], NodeType::Root);
+            let mut iterator = root.iter();
+            assert_eq!(iterator.next().unwrap().name, Some("root".to_string()));
+        }
+
+        #[test]
+        fn returns_children_of_the_given_node() {
+            let root = mk_node(
+                Some("root".to_string()),
+                vec![mk_node(Some("child".to_string()), vec![], NodeType::Con)],
+                NodeType::Root,
+            );
+            let mut iterator = root.iter();
+            iterator.next();
+            assert_eq!(iterator.next().unwrap().name, Some("child".to_string()));
+        }
+
+        #[test]
+        fn returns_transitive_children_of_the_given_node() {
+            let root = mk_node(
+                Some("root".to_string()),
+                vec![mk_node(
+                    Some("child".to_string()),
+                    vec![mk_node(
+                        Some("grandchild".to_string()),
+                        vec![],
+                        NodeType::Con,
+                    )],
+                    NodeType::Con,
+                )],
+                NodeType::Root,
+            );
+            let mut iterator = root.iter();
+            iterator.next();
+            iterator.next();
+            assert_eq!(
+                iterator.next().unwrap().name,
+                Some("grandchild".to_string())
+            );
+        }
+
+        #[test]
+        fn returns_none_at_the_end() {
+            let root = mk_node(Some("root".to_string()), vec![], NodeType::Root);
+            let mut iterator = root.iter();
+            iterator.next();
+            assert_eq!(iterator.next(), None);
+        }
     }
 }
