@@ -87,7 +87,7 @@ pub enum NodeType {
     Con,
     FloatingCon,
     Workspace {
-        num: i64,
+        num: i32,
     },
     DockArea,
     /// A NodeType we don't support yet.

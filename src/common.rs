@@ -47,7 +47,7 @@ pub fn build_tree(val: &json::Value) -> reply::Node {
             "con" => reply::NodeType::Con,
             "floating_con" => reply::NodeType::FloatingCon,
             "workspace" => reply::NodeType::Workspace {
-                num: val.get("num").unwrap().as_i64().unwrap(),
+                num: val.get("num").unwrap().as_i64().unwrap() as i32,
             },
             "dockarea" => reply::NodeType::DockArea,
             other => {
