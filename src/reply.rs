@@ -199,7 +199,7 @@ pub struct Node {
 
 impl Node {
     pub fn pretty(&self) -> String {
-        self.custom_pretty(|x| x.name.clone().unwrap_or(String::from("<Node>")))
+        self.custom_pretty(|x| x.name.clone().unwrap_or_else(|| String::from("<Node>")))
     }
 
     pub fn custom_pretty(&self, render: fn(&Node) -> String) -> String {
@@ -213,7 +213,7 @@ impl Node {
         };
         let rendered = render(self);
         let mut result = format!("{}{}\n", prefix, rendered);
-        for ref child in &self.nodes {
+        for child in &self.nodes {
             result += &child.pretty_internal(render, level + 1);
         }
         result
