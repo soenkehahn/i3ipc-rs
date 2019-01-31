@@ -436,7 +436,7 @@ pub struct Config {
 mod test {
     use super::*;
 
-    fn mk_node(name: Option<String>, nodes: Vec<Node>, nodetype: NodeType) -> Node {
+    fn mk_node(name: Option<String>, nodetype: NodeType, nodes: Vec<Node>) -> Node {
         Node {
             focus: vec![],
             nodes,
@@ -462,22 +462,22 @@ mod test {
     fn pretty_works() {
         let tree = mk_node(
             Some(String::from("root")),
+            NodeType::Root,
             vec![
-                mk_node(Some(String::from("foo")), vec![], NodeType::Con),
+                mk_node(Some(String::from("foo")), NodeType::Con, vec![]),
                 mk_node(
                     Some(String::from("bar")),
-                    vec![mk_node(Some(String::from("baz")), vec![], NodeType::Con)],
                     NodeType::Con,
+                    vec![mk_node(Some(String::from("baz")), NodeType::Con, vec![])],
                 ),
             ],
-            NodeType::Root,
         );
         assert_eq!(tree.pretty(), "root\n  - foo\n  - bar\n    - baz\n");
     }
 
     #[test]
     fn pretty_includes_newline_for_unnamed_nodes() {
-        let tree = mk_node(None, vec![], NodeType::Root);
+        let tree = mk_node(None, NodeType::Root, vec![]);
         assert_eq!(tree.pretty(), "<Node>\n");
     }
 
@@ -485,15 +485,15 @@ mod test {
     fn pretty_renders_unnamed_nodes_correctly() {
         let tree = mk_node(
             Some(String::from("root")),
+            NodeType::Root,
             vec![
-                mk_node(Some(String::from("foo")), vec![], NodeType::Con),
+                mk_node(Some(String::from("foo")), NodeType::Con, vec![]),
                 mk_node(
                     None,
-                    vec![mk_node(Some(String::from("bar")), vec![], NodeType::Con)],
                     NodeType::Con,
+                    vec![mk_node(Some(String::from("bar")), NodeType::Con, vec![])],
                 ),
             ],
-            NodeType::Root,
         );
         assert_eq!(tree.pretty(), "root\n  - foo\n  - <Node>\n    - bar\n");
     }
@@ -502,15 +502,15 @@ mod test {
     fn custom_pretty_allows_to_specify_how_nodes_are_rendered() {
         let tree = mk_node(
             Some(String::from("root")),
+            NodeType::Root,
             vec![
-                mk_node(Some(String::from("foo")), vec![], NodeType::Con),
+                mk_node(Some(String::from("foo")), NodeType::Con, vec![]),
                 mk_node(
                     None,
-                    vec![mk_node(Some(String::from("bar")), vec![], NodeType::Con)],
                     NodeType::Con,
+                    vec![mk_node(Some(String::from("bar")), NodeType::Con, vec![])],
                 ),
             ],
-            NodeType::Root,
         );
         assert_eq!(
             tree.custom_pretty(|x| format!("{:?}", x.nodetype)),
@@ -523,7 +523,7 @@ mod test {
 
         #[test]
         fn returns_the_given_root_node_first() {
-            let root = mk_node(Some(String::from("root")), vec![], NodeType::Root);
+            let root = mk_node(Some(String::from("root")), NodeType::Root, vec![]);
             let mut iterator = root.iter();
             assert_eq!(iterator.next().unwrap().name, Some("root".to_string()));
         }
@@ -532,8 +532,8 @@ mod test {
         fn returns_children_of_the_given_node() {
             let root = mk_node(
                 Some("root".to_string()),
-                vec![mk_node(Some("child".to_string()), vec![], NodeType::Con)],
                 NodeType::Root,
+                vec![mk_node(Some("child".to_string()), NodeType::Con, vec![])],
             );
             let mut iterator = root.iter();
             iterator.next();
@@ -544,16 +544,16 @@ mod test {
         fn returns_transitive_children_of_the_given_node() {
             let root = mk_node(
                 Some("root".to_string()),
+                NodeType::Root,
                 vec![mk_node(
                     Some("child".to_string()),
+                    NodeType::Con,
                     vec![mk_node(
                         Some("grandchild".to_string()),
-                        vec![],
                         NodeType::Con,
+                        vec![],
                     )],
-                    NodeType::Con,
                 )],
-                NodeType::Root,
             );
             let mut iterator = root.iter();
             iterator.next();
@@ -566,7 +566,7 @@ mod test {
 
         #[test]
         fn returns_none_at_the_end() {
-            let root = mk_node(Some("root".to_string()), vec![], NodeType::Root);
+            let root = mk_node(Some("root".to_string()), NodeType::Root, vec![]);
             let mut iterator = root.iter();
             iterator.next();
             assert_eq!(iterator.next(), None);
