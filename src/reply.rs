@@ -219,7 +219,8 @@ impl Node {
         result
     }
 
-    pub fn iter<'a>(&'a self) -> impl Iterator<Item = &'a Node> + 'a {
+    pub fn iter<'a>(&'a self) -> impl Iterator<Item = &'a Node> + std::fmt::Debug + 'a {
+        #[derive(Debug)]
         struct NodeIterator<'a> {
             queue: Vec<&'a Node>,
         }
@@ -570,6 +571,12 @@ mod test {
             let mut iterator = root.iter();
             iterator.next();
             assert_eq!(iterator.next(), None);
+        }
+
+        #[test]
+        fn iterator_implements_debug() {
+            let root = mk_node(Some("root".to_string()), NodeType::Root, vec![]);
+            format!("{:?}", root.iter());
         }
     }
 }
