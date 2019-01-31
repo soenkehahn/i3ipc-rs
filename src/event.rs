@@ -9,6 +9,7 @@ use event::inner::*;
 
 /// An event passed back from i3.
 #[derive(Debug)]
+#[allow(clippy::large_enum_variant)]
 pub enum Event {
     WorkspaceEvent(WorkspaceEventInfo),
     OutputEvent(OutputEventInfo),
