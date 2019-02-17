@@ -114,7 +114,7 @@ pub enum NodeLayout {
 }
 
 /// The reply to the `get_tree` request.
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub struct Node {
     /// List of child node IDs (see `nodes`, `floating_nodes` and `id`) in focus order. Traversing
     /// the tree by following the first entry in this array will result in eventually reaching the
@@ -193,6 +193,53 @@ pub struct Node {
 
     /// Whether this container is currently focused.
     pub focused: bool,
+}
+
+impl Node {
+    pub fn pretty(&self) -> String {
+        self.custom_pretty(|x| x.name.clone().unwrap_or(String::from("<Node>")))
+    }
+
+    pub fn custom_pretty(&self, render: fn(&Node) -> String) -> String {
+        self.pretty_internal(render, 0)
+    }
+
+    fn pretty_internal(&self, render: fn(&Node) -> String, level: usize) -> String {
+        let prefix = match level {
+            0 => String::from(""),
+            _ => format!("{}- ", "  ".repeat(level)),
+        };
+        let rendered = render(self);
+        let mut result = format!("{}{}\n", prefix, rendered);
+        for ref child in &self.nodes {
+            result += &child.pretty_internal(render, level + 1);
+        }
+        result
+    }
+
+    pub fn iter<'a>(&'a self) -> impl Iterator<Item = &'a Node> + 'a {
+        struct NodeIterator<'a> {
+            queue: Vec<&'a Node>,
+        }
+
+        impl<'a> Iterator for NodeIterator<'a> {
+            type Item = &'a Node;
+
+            fn next(&mut self) -> Option<&'a Node> {
+                match self.queue.pop() {
+                    None => None,
+                    Some(result) => {
+                        for node in result.nodes.iter() {
+                            self.queue.push(node);
+                        }
+                        Some(result)
+                    }
+                }
+            }
+        }
+
+        NodeIterator { queue: vec![&self] }
+    }
 }
 
 /// The reply to the `get_marks` request.
@@ -381,4 +428,146 @@ pub struct BindingModes {
 pub struct Config {
     /// A string containing the config file as loaded by i3 most recently.
     pub config: String,
+}
+
+#[cfg(test)]
+mod test {
+    use super::*;
+
+    fn mk_node(name: Option<String>, nodes: Vec<Node>, nodetype: NodeType) -> Node {
+        Node {
+            focus: vec![],
+            nodes,
+            floating_nodes: vec![],
+            id: 1,
+            name,
+            nodetype,
+            border: NodeBorder::Normal,
+            current_border_width: 4,
+            layout: NodeLayout::SplitH,
+            percent: None,
+            rect: (0, 0, 100, 100),
+            window_rect: (0, 0, 0, 0),
+            deco_rect: (0, 0, 0, 0),
+            geometry: (0, 0, 0, 0),
+            window: None,
+            urgent: false,
+            focused: false,
+        }
+    }
+
+    #[test]
+    fn pretty_works() {
+        let tree = mk_node(
+            Some(String::from("root")),
+            vec![
+                mk_node(Some(String::from("foo")), vec![], NodeType::Con),
+                mk_node(
+                    Some(String::from("bar")),
+                    vec![mk_node(Some(String::from("baz")), vec![], NodeType::Con)],
+                    NodeType::Con,
+                ),
+            ],
+            NodeType::Root,
+        );
+        assert_eq!(tree.pretty(), "root\n  - foo\n  - bar\n    - baz\n");
+    }
+
+    #[test]
+    fn pretty_includes_newline_for_unnamed_nodes() {
+        let tree = mk_node(None, vec![], NodeType::Root);
+        assert_eq!(tree.pretty(), "<Node>\n");
+    }
+
+    #[test]
+    fn pretty_renders_unnamed_nodes_correctly() {
+        let tree = mk_node(
+            Some(String::from("root")),
+            vec![
+                mk_node(Some(String::from("foo")), vec![], NodeType::Con),
+                mk_node(
+                    None,
+                    vec![mk_node(Some(String::from("bar")), vec![], NodeType::Con)],
+                    NodeType::Con,
+                ),
+            ],
+            NodeType::Root,
+        );
+        assert_eq!(tree.pretty(), "root\n  - foo\n  - <Node>\n    - bar\n");
+    }
+
+    #[test]
+    fn custom_pretty_allows_to_specify_how_nodes_are_rendered() {
+        let tree = mk_node(
+            Some(String::from("root")),
+            vec![
+                mk_node(Some(String::from("foo")), vec![], NodeType::Con),
+                mk_node(
+                    None,
+                    vec![mk_node(Some(String::from("bar")), vec![], NodeType::Con)],
+                    NodeType::Con,
+                ),
+            ],
+            NodeType::Root,
+        );
+        assert_eq!(
+            tree.custom_pretty(|x| format!("{:?}", x.nodetype)),
+            "Root\n  - Con\n  - Con\n    - Con\n"
+        );
+    }
+
+    mod iter {
+        use super::*;
+
+        #[test]
+        fn returns_the_given_root_node_first() {
+            let root = mk_node(Some(String::from("root")), vec![], NodeType::Root);
+            let mut iterator = root.iter();
+            assert_eq!(iterator.next().unwrap().name, Some("root".to_string()));
+        }
+
+        #[test]
+        fn returns_children_of_the_given_node() {
+            let root = mk_node(
+                Some("root".to_string()),
+                vec![mk_node(Some("child".to_string()), vec![], NodeType::Con)],
+                NodeType::Root,
+            );
+            let mut iterator = root.iter();
+            iterator.next();
+            assert_eq!(iterator.next().unwrap().name, Some("child".to_string()));
+        }
+
+        #[test]
+        fn returns_transitive_children_of_the_given_node() {
+            let root = mk_node(
+                Some("root".to_string()),
+                vec![mk_node(
+                    Some("child".to_string()),
+                    vec![mk_node(
+                        Some("grandchild".to_string()),
+                        vec![],
+                        NodeType::Con,
+                    )],
+                    NodeType::Con,
+                )],
+                NodeType::Root,
+            );
+            let mut iterator = root.iter();
+            iterator.next();
+            iterator.next();
+            assert_eq!(
+                iterator.next().unwrap().name,
+                Some("grandchild".to_string())
+            );
+        }
+
+        #[test]
+        fn returns_none_at_the_end() {
+            let root = mk_node(Some("root".to_string()), vec![], NodeType::Root);
+            let mut iterator = root.iter();
+            iterator.next();
+            assert_eq!(iterator.next(), None);
+        }
+    }
 }
